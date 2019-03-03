@@ -1,0 +1,273 @@
+Parameters:
+  KeyPair:
+    Description: Amazon EC2 Key Pair
+    Type: AWS::EC2::KeyPair::KeyName
+  VpcId:
+    Description: Enter the Amazon VPC ID
+    Type: AWS::EC2::VPC::Id
+  SubnetIds:
+    Description: Enter the Subnets
+    Type: List<AWS::EC2::Subnet::Id>
+  EmailUser:
+    Description: "Email address to notify user of any scaling operations"
+    Type: String
+Mappings:
+  RegionMap:
+    us-east-2:
+      AMI: ami-0cd3dfa4e37921605
+    us-east-1:
+      AMI: ami-0080e4c5bc078760e
+    us-west-1:
+      AMI: ami-0799ad445b5727125
+    us-west-2:
+      AMI: ami-01e24be29428c15b2
+    ap-south-1:
+      AMI: ami-0937dcc711d38ef3f
+    ap-northeast-2:
+      AMI: ami-018a9a930060d38aa
+    ap-southeast-1:
+      AMI: ami-04677bdaa3c2b6e24
+    ap-southeast-2:
+      AMI: ami-0c9d48b5db609ad6e
+    ap-northeast-1:
+      AMI: ami-0d7ed3ddb85b521a6
+    ca-cental-1:
+      AMI: ami-0de8b8e4bc1f125fe
+    eu-central-1:
+      AMI: ami-0eaec5838478eb0ba
+    eu-west-1:
+      AMI: ami-08935252a36e25f85
+    eu-west-2:
+      AMI: ami-0664a710233d7c148
+    eu-west-3:
+      AMI: ami-0854d53ce963f69d8
+    eu-north-1:
+      AMI: ami-6d27a913
+    sa-east-1:
+      AMI: ami-0b04450959586da29
+Resources:
+  DynamoDbLambda:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Handler: s3todynamodb.handler
+      Role:
+        Fn::GetAtt:
+          - "LambdaExecutionRole"
+          - "Arn"
+      Code:
+        S3Bucket: "my-lambdas-2019"
+        S3Key: "s3todynamodb.zip"
+      MemorySize: 128
+      Runtime: "python3.7"
+      Timeout: 60
+  LambdaExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+       AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: "sts:AssumeRole"
+       Path: "/"
+       Policies:
+         - PolicyName: LambdaExecutionRole
+           PolicyDocument:
+             Version: "2012-10-17"
+             Statement:
+               - Effect: Allow
+                 Action:
+                   - "s3:*"
+                   - "dynamodb:*"
+                 Resource: "*"
+  NotificationTopic:
+    Type: "AWS::SNS::Topic"
+    Properties:
+      Subscription:
+        - Endpoint: !Ref EmailUser
+          Protocol: email
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      SecurityGroups:
+        - !Ref ELBSecurityGroup
+      Subnets: !Ref SubnetIds
+  LoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn:
+            Ref: TargetGroup
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AvailabilityZones: !GetAZs
+      LaunchConfigurationName: !Ref LaunchConfig
+      MinSize: "1"
+      MaxSize: "3"
+      TargetGroupARNs:
+        - !Ref TargetGroup
+      NotificationConfiguration:
+        TopicARN:
+          Ref: NotificationTopic
+        NotificationTypes:
+          - "autoscaling:EC2_INSTANCE_LAUNCH"
+          - "autoscaling:EC2_INSTANCE_LAUNCH_ERROR"
+          - "autoscaling:EC2_INSTANCE_TERMINATE"
+          - "autoscaling:EC2_INSTANCE_TERMINATE_ERROR"
+          - "autoscaling:TEST_NOTIFICATION"
+
+  LaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Metadata:
+      Comment: "Installing a simple application"
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              httpd: []
+          files:
+            /var/www/html/index.html:
+              content:
+                "<h1>This is your webpage</h1>"
+          services:
+            sysvinit:
+              httpd:
+                enabled: true
+                ensureRunning: true
+
+    Properties:
+      KeyName: !Ref KeyPair
+      ImageId:
+        Fn::FindInMap:
+        - RegionMap
+        - !Ref AWS::Region
+        - AMI
+      UserData:
+        "Fn::Base64":
+          !Sub |
+            #!/bin/bash -xe
+            # Ensure AWS CFN Bootstrap is the latest
+            yum install -y aws-cfn-bootstrap
+            # Install the files and packages from the metadata
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource LaunchConfig --region ${AWS::Region}
+      SecurityGroups:
+        - Ref: "EC2SecurityGroup"
+      InstanceType: "t2.micro"
+  AutoScalingScaleUpPolicy:
+    Type: "AWS::AutoScaling::ScalingPolicy"
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName:
+        Ref: AutoScalingGroup
+      Cooldown: 60
+      ScalingAdjustment: 1
+  AutoScalingScaleDownPolicy:
+    Type: "AWS::AutoScaling::ScalingPolicy"
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName:
+        Ref: AutoScalingGroup
+      Cooldown: 60
+      ScalingAdjustment: "-1"
+
+  PermissionsS3InvokeLambda:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt
+        - DynamoDbLambda
+        - Arn
+      Principal: "s3.amazonaws.com"
+      SourceArn:
+        Fn::Join:
+        - ""
+        - - 'arn:aws:s3:::'
+          - Fn::Sub: "spanish-app-db"
+
+  Bucket:
+    DependsOn: PermissionsS3InvokeLambda
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: "spanish-app-db"
+      AccessControl: "PublicRead"
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Function: !GetAtt
+              - DynamoDbLambda
+              - Arn
+            Event: "s3:ObjectCreated:*"
+            Filter:
+              S3Key:
+                Rules:
+                  -
+                    Name: suffix
+                    Value: json
+
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        -
+          AttributeName: "English"
+          AttributeType: "S"
+        -
+          AttributeName: "Spanish"
+          AttributeType: "S"
+
+      KeySchema:
+        -
+          AttributeName: "English"
+          KeyType: "HASH"
+        -
+          AttributeName: "Spanish"
+          KeyType: "RANGE"
+
+      ProvisionedThroughput:
+        ReadCapacityUnits: "5"
+        WriteCapacityUnits: "5"
+      TableName: "spanishapp"
+
+  ELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ELB Security Group
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EC2 Security Group
+  EC2InboundRule: # ec2 can only accept traffic from alb
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      SourceSecurityGroupId:
+        !GetAtt
+        - ELBSecurityGroup
+        - GroupId
+      GroupId:
+        !GetAtt
+        - EC2SecurityGroup
+        - GroupId
+Outputs:
+  PublicDns:
+    Description: The Public DNS
+    Value: !Sub 'http://${LoadBalancer.DNSName}'

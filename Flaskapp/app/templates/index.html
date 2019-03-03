@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>{% block title %}{% endblock %}</title>
+  <title>Bootstrap Theme Simply Me</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <link href="https://fonts.googleapis.com/css?family=Montserrat" rel="stylesheet">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+  <link rel="stylesheet" href="../static/css/mystyle.css">
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-default">
+    <div class="container">
+      <div class="navbar-header">
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#myNavbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+        <a class="navbar-brand" href="#">LEARN SPANISH</a>
+      </div>
+      <div class="collapse navbar-collapse" id="myNavbar">
+        <ul class="nav navbar-nav navbar-right">
+          <li><a href="/">MAIN</a></li>
+          <li><a href="/quiz">QUIZ</a></li>
+          <li><a href="/vocabulary">VOCABULARY</a></li>
+          <li><a href="/about">ABOUT</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  {% block body %}
+  {% endblock %}
+</div>
+
+<!-- Footer -->
+<footer class="bg-4 text-center" style="bottom: 0; position: fixed; width:100%">
+  <p>© Katarzyna Szczurzydlo</p>
+</footer>
+</body>
+</html>

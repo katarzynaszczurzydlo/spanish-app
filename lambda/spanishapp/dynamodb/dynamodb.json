@@ -1,0 +1,38 @@
+{
+	"Vocabulary": [{
+			"English": "water",
+			"Spanish": "el agua"
+
+		},
+		{
+      "English": "bill",
+			"Spanish": "la cuenta"
+
+		},
+		{
+      "English": "restaurant",
+			"Spanish": "el restaurante"
+
+		},
+    {
+      "English": "table",
+      "Spanish": "la mesa"
+
+		},
+    {
+      "English": "beer",
+		   "Spanish": "la cerveza"
+
+		},
+    {
+      "English": "small dish",
+		    "Spanish": "la tapa"
+
+		},
+    {
+      "English": "octopus",
+      "Spanish": "el pulpo"
+
+		}
+	]
+}

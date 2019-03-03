@@ -1,0 +1,27 @@
+
+{% extends "index.html" %}
+{% block title %}Vocabulary{% endblock %}
+{% block body %}
+<div class="container-fluid bg-2">
+     <div style= "justify-content: center; margin:auto; width: 50%;" id="tableContainer">
+</div>
+      <script type="application/javascript">
+     $(document).ready(function(){
+        $.getJSON("/get-items",function(data){
+            console.log(data);
+                         var table = '<table class="table"><thead><tr><th style="text-align:left;">English</th><th style="text-align:left">Spanish</th></tr><thead><tbody></tr>';
+                           $.each(data.Items, function(key, value){
+                             console.log(key);
+                             console.log(value.English);
+                             table += ('<tr>');
+                             table += ('<td>' + value.English['S'] + '</td>');
+                             table += ('<td>' + value.Spanish['S'] + '</td>');
+                             table += ('</tr>');
+       });
+                         table += '</tbody></table>';
+                        $("#tableContainer").html(table)
+    });
+    });
+    </script>
+</div>
+{% endblock %}
